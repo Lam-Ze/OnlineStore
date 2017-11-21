@@ -1,0 +1,208 @@
+package com.mymall.service.impl;
+
+import com.mymall.common.Const;
+import com.mymall.common.ServerResponse;
+import com.mymall.common.TokenCache;
+import com.mymall.dao.UserMapper;
+import com.mymall.pojo.User;
+import com.mymall.service.IUserService;
+import com.mymall.util.MD5Util;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.UUID;
+
+/**
+ * Created by lamZe on 2017/11/17.<br>
+ */
+
+@Service("iUserService")
+public class UserServiceImpl implements IUserService{
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Override
+    public ServerResponse<User> login(String username, String password) {
+        int resultCount = userMapper.checkUsername(username);
+        if(resultCount == 0) {
+            return ServerResponse.createByErrorMessage("用户名不存在");
+        }
+
+        //密码登录MD5
+        password = MD5Util.MD5EncodeUtf8(password);
+
+        User user = userMapper.selectLogin(username, password);
+        if(user == null) {
+            return ServerResponse.createByErrorMessage("密码错误");
+        }
+
+        user.setPassword(StringUtils.EMPTY);
+        return ServerResponse.createBySuccess("登录成功",user);
+
+    }
+
+    public ServerResponse<String> register(User user) {
+        //校验
+        ServerResponse<String> validResponse = this.checkValid(user.getUsername(), Const.USERNAME);
+        if(!validResponse.isSuccess()) {
+            return validResponse;
+        }
+
+        validResponse = this.checkValid(user.getEmail(),Const.EMIAL);
+        if(!validResponse.isSuccess()) {
+            return validResponse;
+        }
+
+        //设置权限和密码加密
+        user.setRole(Const.Role.ROLE_CUSTOMER);
+        user.setPassword(MD5Util.MD5EncodeUtf8(user.getPassword()));
+
+        //注册
+        int resultCount = userMapper.insert(user);
+        if(resultCount ==0) {
+            return ServerResponse.createByErrorMessage("注册失败");
+        }
+
+        return ServerResponse.createBySuccessMessage("注册成功");
+    }
+
+    public ServerResponse<String> checkValid(String str,String type) {
+        if(StringUtils.isNotBlank(type)) {
+            //校验用户名
+            if(Const.USERNAME.equals(type)) {
+                int resultCount = userMapper.checkUsername(str);
+                if(resultCount>0) {
+                    return ServerResponse.createByErrorMessage("用户名已存在");
+                }
+            }
+            //校验email
+            if(Const.EMIAL.equals(type)) {
+                int resultCount = userMapper.checkEmail(str);
+                if(resultCount > 0) {
+                    return ServerResponse.createByErrorMessage("邮箱已存在");
+                }
+            }
+        }else {
+            return ServerResponse.createByErrorMessage("参数错误");
+        }
+        return ServerResponse.createBySuccessMessage("校验成功");
+    }
+
+    public ServerResponse<String> selectQuestion(String username) {
+        ServerResponse<String> validResponse = this.checkValid(username, Const.USERNAME);
+        if(validResponse.isSuccess()) {
+            //用户不存在
+            return ServerResponse.createByErrorMessage("用户不存在");
+        }
+        String question = userMapper.selectQuestionByUsername(username);
+        if(StringUtils.isNotBlank(question)) {
+            return ServerResponse.createBySuccessMessage(question);
+        }
+        return ServerResponse.createByErrorMessage("找回密码的问题是空的");
+    }
+
+    public ServerResponse<String> checkAnswer(String username,String question,String answer) {
+        int resultCount = userMapper.checkAnswer(username, question, answer);
+        if(resultCount > 0) {
+            //回答正确
+            String forgetToken = UUID.randomUUID().toString();
+            TokenCache.setKey(TokenCache.TOKEN_PREFIX+username,forgetToken);
+            return ServerResponse.createBySuccess(forgetToken);
+        }
+        return ServerResponse.createByErrorMessage("问题的答案错误");
+    }
+
+    public ServerResponse<String> forgetResetPassword(String username,String passwordNew,String forgetToken) {
+        //判断token是否为空
+        if (StringUtils.isBlank(forgetToken)) {
+            return ServerResponse.createByErrorMessage("参数错误，token需要传递");
+        }
+
+        //判断用户是否存在
+        ServerResponse<String> validResponse = this.checkValid(username, Const.USERNAME);
+        if (validResponse.isSuccess()) {
+            //用户不存在
+            return ServerResponse.createByErrorMessage("用户不存在");
+        }
+
+        //该用户token是否在guava缓存中
+        String token = TokenCache.getKey(TokenCache.TOKEN_PREFIX + username);
+        if (StringUtils.isBlank(token)) {
+            return ServerResponse.createByErrorMessage("token无效或者过期");
+        }
+
+        //比较token
+        if (StringUtils.equals(forgetToken, token)) {
+            String md5Password = MD5Util.MD5EncodeUtf8(passwordNew);
+
+            //修改密码
+            int rowCount = userMapper.updatePasswordByUsername(username, md5Password);
+
+            if (rowCount > 0) {
+                return ServerResponse.createBySuccessMessage("修改密码成功");
+            }
+        } else {
+            return ServerResponse.createByErrorMessage("token错误，请重新获取重置密码的token");
+        }
+        return ServerResponse.createByErrorMessage("修改密码失败");
+    }
+
+    public ServerResponse<String> resetPassword(User user,String passwordOld,String passwordNew) {
+        //判断原密码
+        int resultCount = userMapper.checkPassword(user.getId(), MD5Util.MD5EncodeUtf8(passwordOld));
+        if(resultCount >0 ) {
+            return ServerResponse.createByErrorMessage("原密码不正确");
+        }
+        //修改密码
+        user.setPassword(MD5Util.MD5EncodeUtf8(passwordNew));
+        int updateCount= userMapper.updateByPrimaryKeySelective(user);
+        if(updateCount > 0) {
+            return ServerResponse.createBySuccessMessage("密码修改成功");
+        }
+        return ServerResponse.createByErrorMessage("密码修改失败");
+    }
+
+    public ServerResponse<User> updateInformation(User user) {
+        //校验新Email是否被占用
+        int resultCount = userMapper.checkEmailByUserId(user.getId(), user.getEmail());
+        if(resultCount > 0) {
+            return ServerResponse.createByErrorMessage("该邮箱已存在，请修改后再尝试");
+        }
+        //确定可以修改的信息
+        User userNew = new User();
+        userNew.setId(user.getId());
+        userNew.setAnswer(user.getAnswer());
+        userNew.setEmail(user.getEmail());
+        userNew.setPhone(user.getPhone());
+        userNew.setQuestion(user.getQuestion());
+        //更新
+        int updateCount = userMapper.updateByPrimaryKeySelective(userNew);
+        if(updateCount > 0) {
+            return ServerResponse.createBySuccess("修改个人信息成功",userNew);
+        }
+
+        return ServerResponse.createByErrorMessage("修改失败");
+    }
+
+    public ServerResponse<User> getInformation(int userId) {
+        User user = userMapper.selectByPrimaryKey(userId);
+        if(user == null) {
+            return ServerResponse.createByErrorMessage("用户不存在");
+        }
+        user.setPassword(StringUtils.EMPTY);
+        return ServerResponse.createBySuccess(user);
+    }
+
+
+    //检查是不是管理员
+    public ServerResponse checkAdminRole(User user) {
+        if(user!=null && user.getRole()==Const.Role.ROLE_ADMIN) {
+            return ServerResponse.createBySuccess();
+        }
+        else {
+            return ServerResponse.createByError();
+        }
+    }
+}

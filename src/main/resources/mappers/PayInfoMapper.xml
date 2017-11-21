@@ -56,12 +56,8 @@
       <if test="latformStatus != null">
         latform_status,
       </if>
-      <if test="createTime != null">
-        create_time,
-      </if>
-      <if test="updateTime != null">
-        update_time,
-      </if>
+      create_time,
+      update_time,
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="id != null">
@@ -82,12 +78,8 @@
       <if test="latformStatus != null">
         #{latformStatus,jdbcType=VARCHAR},
       </if>
-      <if test="createTime != null">
-        now(),
-      </if>
-      <if test="updateTime != null">
-        now(),
-      </if>
+      now(),
+      now(),
     </trim>
   </insert>
   <update id="updateByPrimaryKeySelective" parameterType="com.mymall.pojo.PayInfo">
@@ -111,9 +103,7 @@
       <if test="createTime != null">
         create_time = #{createTime,jdbcType=TIMESTAMP},
       </if>
-      <if test="updateTime != null">
-        update_time = now(),
-      </if>
+      update_time = now(),
     </set>
     where id = #{id,jdbcType=INTEGER}
   </update>

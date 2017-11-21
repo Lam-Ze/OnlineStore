@@ -9,9 +9,9 @@
      http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd
      http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd">
 
-    <context:component-scan base-package="com.mymall" annotation-config="true"/>
+    <!--<context:component-scan base-package="com.mymall" annotation-config="true"/>-->
 
-    <context:property-placeholder location="dataSourceConfig.properties"/>
+    <context:property-placeholder location="classpath:dataSourceConfig.properties"/>
 
 
     <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
