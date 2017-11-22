@@ -11,6 +11,10 @@ import java.util.Properties;
 /**
  * Created by lamZe on 2017/11/18.<br>
  */
+
+/**
+ * 获取mmall.properties的属性
+ */
 public class PropertiesUtil {
     static Logger logger = LoggerFactory.getLogger(PropertiesUtil.class);
 

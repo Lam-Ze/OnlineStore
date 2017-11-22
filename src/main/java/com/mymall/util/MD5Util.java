@@ -10,6 +10,9 @@ import java.util.Properties;
  * @date 2017年6月5日 下午8:13:09
  */
 
+/**
+ * MD5加密密码
+ */
 public class MD5Util {
 
     private static String byteArrayToHexString(byte b[]) {
